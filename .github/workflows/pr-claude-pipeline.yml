@@ -12,12 +12,12 @@ on:
         description: "Max turns for initial review"
         required: false
         type: number
-        default: 5
+        default: 10
       max_turns_followup:
         description: "Max turns for follow-up review"
         required: false
         type: number
-        default: 7
+        default: 5
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
