@@ -1,0 +1,74 @@
+name: Claude PR Code Review
+
+on:
+  workflow_call:
+    inputs:
+      target_branch:
+        description: "The branch PRs target (e.g. master, main)"
+        required: false
+        type: string
+        default: "master"
+      max_turns_initial:
+        description: "Max turns for initial review"
+        required: false
+        type: number
+        default: 5
+      max_turns_followup:
+        description: "Max turns for follow-up review"
+        required: false
+        type: number
+        default: 7
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Fetch shared Claude skills
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # List the skills to fetch from Jeremias-Abgastechnik-GmbH/claude-skills
+
+          set -euo pipefail
+
+          skills=(
+            "code-review-pro"
+            "pr-code-review"
+          )
+          for skill in "${skills[@]}"; do
+            mkdir -p ~/.claude/skills/${skill}
+            gh api "repos/Jeremias-Abgastechnik-GmbH/claude-skills/contents/skills/${skill}/SKILL.md" \
+              --jq '.content' | base64 -d > ~/.claude/skills/${skill}/SKILL.md
+            echo "Fetched skill: ${skill}"
+          done
+
+      - name: Initial code review
+        if: github.event.action == 'opened'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: "/pr-code-review initial ${{ github.repository }} ${{ github.event.pull_request.number }}"
+          claude_args: '--max-turns ${{ inputs.max_turns_initial }} --allowedTools mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Read'
+
+      - name: Follow-up review
+        if: github.event.action == 'synchronize'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: "/pr-code-review new-commits ${{ github.repository }} ${{ github.event.pull_request.number }}"
+          claude_args: '--max-turns ${{ inputs.max_turns_followup }} --allowedTools mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Read'
