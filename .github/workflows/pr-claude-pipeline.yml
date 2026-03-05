@@ -17,7 +17,7 @@ on:
         description: "Max turns for follow-up review"
         required: false
         type: number
-        default: 7
+        default: 10
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
